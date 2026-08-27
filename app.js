@@ -46,7 +46,11 @@
   function resolvePsdDecoder(){
     if(typeof window.PSD==='function')return window.PSD;
     if(typeof window.require!=='function')return null;
-    try{return window.require(100)}catch(error){console.error('PSD.js module resolution failed',error);return null}
+    try{
+      const module=window.require('psd');
+      if(typeof module==='function')return module;
+      return module?.PSD||module?.default||null;
+    }catch(error){console.error('PSD.js module resolution failed',error);return null}
   }
   function waitForImage(image){
     if(image.complete&&image.naturalWidth)return Promise.resolve();
@@ -92,13 +96,18 @@
 
   function vectorize(canvas){
     const c=canvas.getContext('2d'),{width:w,height:h}=canvas,data=c.getImageData(0,0,w,h).data,threshold=+els.threshold.value,tol=+els.tolerance.value;
-    const colors=[];const buckets=new Map(),quant=Math.max(1,tol);
+    const buckets=new Map(),quant=Math.max(1,tol);
     for(let p=0;p<data.length;p+=4){if(data[p+3]<128||Math.max(data[p],data[p+1],data[p+2])<=threshold)continue;const rgb=[data[p],data[p+1],data[p+2]],bucket=rgb.map(v=>Math.round(v/quant)*quant).join(','),exact=rgb.join(',');if(!buckets.has(bucket))buckets.set(bucket,{count:0,exact:new Map()});const item=buckets.get(bucket);item.count++;item.exact.set(exact,(item.exact.get(exact)||0)+1)}
-    [...buckets.values()].filter(x=>x.count>=4).sort((a,b)=>b.count-a.count).slice(0,24).forEach(item=>{const key=[...item.exact].sort((a,b)=>b[1]-a[1])[0][0];colors.push(key.split(',').map(Number))});
+    const candidates=[...buckets.values()].filter(x=>x.count>=4).sort((a,b)=>b.count-a.count).map(item=>({count:item.count,rgb:[...item.exact].sort((a,b)=>b[1]-a[1])[0][0].split(',').map(Number)}));
+    const families=[];
+    for(const candidate of candidates){let family=families.find(x=>colorCosine(x.rgb,candidate.rgb)>=.995);if(family){family.count+=candidate.count;if(candidate.count>family.peak){family.rgb=candidate.rgb;family.peak=candidate.count}}else families.push({rgb:candidate.rgb,count:candidate.count,peak:candidate.count})}
+    const colors=families.filter(x=>x.count>=Math.max(16,w*h*.00001)&&Math.max(...x.rgb)>Math.max(32,threshold*2)).sort((a,b)=>b.count-a.count).slice(0,12).map(x=>x.rgb);
     const result=new Map();
-    for(const color of colors){const mask=new Uint8Array(w*h);let count=0;for(let p=0,k=0;p<data.length;p+=4,k++){if(data[p+3]<128)continue;const d=Math.max(Math.abs(data[p]-color[0]),Math.abs(data[p+1]-color[1]),Math.abs(data[p+2]-color[2]));if(d<=Math.max(2,tol)){mask[k]=1;count++}}if(count<4)continue;const contour=traceBoundary(mask,w,h);if(contour.length>3)result.set(color.join(','),resample(contour,+els.precision.value))}
+    for(const color of colors){const mask=new Uint8Array(w*h);let count=0;for(let p=0,k=0;p<data.length;p+=4,k++){const rgb=[data[p],data[p+1],data[p+2]];if(data[p+3]<128||Math.max(...rgb)<=threshold)continue;if(colorCosine(rgb,color)>=.985){mask[k]=1;count++}}if(count<4)continue;const contour=traceBoundary(mask,w,h);if(contour.length>3)result.set(color.join(','),resample(contour,+els.precision.value))}
     return result;
   }
+
+  function colorCosine(a,b){const dot=a[0]*b[0]+a[1]*b[1]+a[2]*b[2],ma=Math.hypot(...a),mb=Math.hypot(...b);return ma&&mb?dot/(ma*mb):0}
 
   function traceBoundary(mask,w,h){
     const edges=new Map(),add=(a,b)=>{const k=a.join(',');if(!edges.has(k))edges.set(k,[]);edges.get(k).push(b)};
