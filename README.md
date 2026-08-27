@@ -1,6 +1,6 @@
 # CHROMA TWEEN
 
-Repository: [tomosud/distant_morph](https://github.com/tomosud/distant_morph)
+[Repository: [tomosud/distant_morph](https://github.com/tomosud/distant_morph)](https://tomosud.github.io/distant_morph/)
 
 黒背景上のくっきりしたRGB色領域を、複数のキー画像間で補間する静的Webアプリです。画像はファイル名順に並び、各区間へ指定枚数の中割を生成してPNG連番のZIPとして保存します。処理はブラウザ内で完結し、画像をサーバーへ送信しません。
 
