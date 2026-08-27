@@ -48,6 +48,7 @@
           <label class="field"><span>区間ごとの中割枚数</span><div class="number-wrap"><input id="inbetweens" type="number" min="1" max="60" value="5"><small>枚</small></div></label>
           <label class="field"><span>輪郭の精度</span><select id="precision"><option value="128">標準 · 128点</option><option value="256" selected>高精度 · 256点</option><option value="512">最高 · 512点</option></select></label>
           <label class="field"><span>補間カーブ</span><select id="easing"><option value="linear">Linear · 等速</option><option value="smooth" selected>Smooth · なめらか</option><option value="easeInOut">Ease in / out</option></select></label>
+          <label class="field"><span>出力解像度 · 長辺</span><select id="outputResolution"><option value="original" selected>Original</option><option value="1024">1024 px</option><option value="512">512 px</option><option value="256">256 px</option></select></label>
           <label class="field"><span>出力名</span><input id="prefix" type="text" value="tween_" maxlength="40"></label>
         </div>
         <details><summary>色の抽出設定</summary><div class="advanced"><label>背景しきい値 <input id="blackThreshold" type="range" min="0" max="32" value="8"><output id="thresholdOut">8</output></label><label>色の許容差 <input id="colorTolerance" type="range" min="0" max="64" value="12"><output id="toleranceOut">12</output></label></div></details>
@@ -66,6 +67,6 @@
 
   <script src="vendor-psd.min.js?v=3.4.0"></script>
   <script src="vendor-jszip.min.js?v=3.10.1"></script>
-  <script src="app.js?v=20260827-4"></script>
+  <script src="app.js?v=20260827-5"></script>
 </body>
 </html>

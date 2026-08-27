@@ -9,7 +9,8 @@ Repository: [tomosud/distant_morph](https://github.com/tomosud/distant_morph)
 1. `index.html` をGitHub Pagesで公開するか、`run.bat` でローカルサーバーを起動します。
 2. 同じ解像度のPNG / PSD / JPG / WEBPを2枚以上ドロップします。
 3. 区間ごとの中割枚数、輪郭精度、補間カーブを設定します。
-4. 「中割を生成」で確認し、「ZIPをダウンロード」で通常連番PNGとRGB Distance Field連番を保存します。
+4. 出力解像度をOriginal / 長辺1024 / 512 / 256pxから選択します。縦横比は維持されます。
+5. 「中割を生成」で確認し、「ZIPをダウンロード」で通常連番PNGとRGB Distance Field連番を保存します。
 
 出力総数は `(キー画像数 - 1) × (中割枚数 + 1) + 1` です。各色は先頭画像で検出したRGB値を維持します。入力は各色につき連結した単一領域であることを前提とします。
 
