@@ -124,8 +124,34 @@
   function smoothPath(p){if(!p.length)return'';let d=`M ${(p[0][0]+p.at(-1)[0])/2} ${(p[0][1]+p.at(-1)[1])/2}`;for(let i=0;i<p.length;i++){const n=p[(i+1)%p.length];d+=` Q ${p[i][0]} ${p[i][1]} ${(p[i][0]+n[0])/2} ${(p[i][1]+n[1])/2}`}return d+' Z'}
   function ease(t,type){if(type==='smooth')return t*t*(3-2*t);if(type==='easeInOut')return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;return t}
   async function svgToCanvas(svg,target=els.canvas){const blob=new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml'}),url=URL.createObjectURL(blob);try{const img=await new Promise((res,rej)=>{const x=new Image;x.onload=()=>res(x);x.onerror=rej;x.src=url});target.width=+svg.getAttribute('width');target.height=+svg.getAttribute('height');target.getContext('2d',{alpha:false}).drawImage(img,0,0)}finally{URL.revokeObjectURL(url)}}
+  function distanceFieldBlob(canvas,spread){
+    const context=canvas.getContext('2d',{willReadFrequently:true}),w=canvas.width,h=canvas.height,source=context.getImageData(0,0,w,h).data,result=new ImageData(w,h),masks=[new Uint8Array(w*h),new Uint8Array(w*h),new Uint8Array(w*h)];
+    for(let i=0,p=0;i<source.length;i+=4,p++){masks[0][p]=source[i]>=128?1:0;masks[1][p]=source[i+1]>=128?1:0;masks[2][p]=source[i+2]>=128?1:0}
+    for(let channel=0;channel<3;channel++){
+      const mask=masks[channel],insideCount=mask.reduce((sum,v)=>sum+v,0);
+      if(!insideCount){for(let p=0;p<mask.length;p++)result.data[p*4+channel]=0;continue}
+      if(insideCount===mask.length){for(let p=0;p<mask.length;p++)result.data[p*4+channel]=255;continue}
+      const toInside=distanceTransform(mask,1,w,h),toOutside=distanceTransform(mask,0,w,h);
+      for(let p=0;p<mask.length;p++){const signed=mask[p]?Math.sqrt(toOutside[p]):-Math.sqrt(toInside[p]);result.data[p*4+channel]=Math.round(255*Math.max(0,Math.min(1,.5+signed/(2*spread))))}
+    }
+    for(let p=3;p<result.data.length;p+=4)result.data[p]=255;
+    const output=document.createElement('canvas');output.width=w;output.height=h;output.getContext('2d').putImageData(result,0,0);
+    return new Promise(resolve=>output.toBlob(resolve,'image/png'));
+  }
+  function distanceTransform(mask,target,w,h){
+    const size=w*h,data=new Float32Array(size),limit=Math.max(w,h),input=new Float32Array(limit),output=new Float32Array(limit),infinity=1e20;
+    for(let i=0;i<size;i++)data[i]=mask[i]===target?0:infinity;
+    for(let y=0;y<h;y++){const offset=y*w;for(let x=0;x<w;x++)input[x]=data[offset+x];edt1d(input,output,w);for(let x=0;x<w;x++)data[offset+x]=output[x]}
+    for(let x=0;x<w;x++){for(let y=0;y<h;y++)input[y]=data[y*w+x];edt1d(input,output,h);for(let y=0;y<h;y++)data[y*w+x]=output[y]}
+    return data;
+  }
+  function edt1d(input,output,n){
+    const sites=new Int32Array(n),bounds=new Float64Array(n+1);let k=0;sites[0]=0;bounds[0]=-Infinity;bounds[1]=Infinity;
+    for(let q=1;q<n;q++){let s=((input[q]+q*q)-(input[sites[k]]+sites[k]*sites[k]))/(2*q-2*sites[k]);while(s<=bounds[k]){k--;s=((input[q]+q*q)-(input[sites[k]]+sites[k]*sites[k]))/(2*q-2*sites[k])}k++;sites[k]=q;bounds[k]=s;bounds[k+1]=Infinity}
+    k=0;for(let q=0;q<n;q++){while(bounds[k+1]<q)k++;const d=q-sites[k];output[q]=d*d+input[sites[k]]}
+  }
   async function showFrame(i){if(!state.frames[i])return;await svgToCanvas(state.frames[i]);els.empty.hidden=true;els.timeline.value=i;els.count.value=`${String(i+1).padStart(3,'0')} / ${String(state.frames.length).padStart(3,'0')}`}
   function togglePlay(){if(state.timer){clearInterval(state.timer);state.timer=null;els.play.textContent='▶';return}els.play.textContent='Ⅱ';state.timer=setInterval(()=>{let i=(+els.timeline.value+1)%state.frames.length;showFrame(i)},1000/12)}
-  async function downloadZip(){if(!state.frames.length||!window.JSZip)return setStatus('ZIPライブラリを読み込めませんでした');setBusy(true,'PNG連番を書き出し中…');els.download.disabled=true;try{const zip=new JSZip(),pad=String(state.frames.length).length,prefix=(els.prefix.value||'tween_').replace(/[\\/:*?"<>|]/g,'_');const out=document.createElement('canvas');for(let i=0;i<state.frames.length;i++){await svgToCanvas(state.frames[i],out);const blob=await new Promise(r=>out.toBlob(r,'image/png'));zip.file(`${prefix}${String(i+1).padStart(pad,'0')}.png`,blob);setProgress((i+1)/state.frames.length*.8);await tick()}const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}},m=>setProgress(.8+m.percent*.002));const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${prefix}sequence.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);setStatus('ZIPをダウンロードしました')}catch(e){console.error(e);setStatus('ZIPの作成に失敗しました')}finally{setBusy(false);els.download.disabled=false}}
+  async function downloadZip(){if(!state.frames.length||!window.JSZip)return setStatus('ZIPライブラリを読み込めませんでした');setBusy(true,'PNG・Distance Field連番を書き出し中…');els.download.disabled=true;try{const zip=new JSZip(),pad=String(state.frames.length).length,prefix=(els.prefix.value||'tween_').replace(/[\\/:*?"<>|]/g,'_');const out=document.createElement('canvas');for(let i=0;i<state.frames.length;i++){await svgToCanvas(state.frames[i],out);const name=`${prefix}${String(i+1).padStart(pad,'0')}`,spread=Math.max(out.width,out.height)*.25;const blob=await new Promise(r=>out.toBlob(r,'image/png'));zip.file(`${name}.png`,blob);const dfBlob=await distanceFieldBlob(out,spread);zip.file(`distance_field/${name}_df.png`,dfBlob);setProgress((i+1)/state.frames.length*.8);await tick()}const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}},m=>setProgress(.8+m.percent*.002));const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${prefix}sequence.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);setStatus('通常画像とDistance Field画像をダウンロードしました')}catch(e){console.error(e);setStatus('ZIPの作成に失敗しました')}finally{setBusy(false);els.download.disabled=false}}
   function setProgress(v){els.progress.querySelector('i').style.width=`${Math.round(v*100)}%`}
 })();
